@@ -1,0 +1,115 @@
+name: 'TWRP Build Action'
+description: "A action to built teamwin recovery image."
+
+inputs:
+  android-onmi:
+    default: false
+    required: true
+  dturl:
+    default: ""
+    required: true
+  branch: 
+    default: "twrp-12.1"
+    required: true
+  dtbrench:
+    default: ""
+    required: false
+  product:
+    default: ""
+    required: true
+  boardname:
+    default: ""
+    required: true
+  lunchname:
+    default: ""
+    required: true
+  ab-partition:
+    defalut: false
+    required: false
+  twrp-dep:
+    default: false
+    required: false
+
+runs:
+  using: 'composite'
+  steps:
+    - id: jdk
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'zulu'
+        java-version: '8'
+
+    - id: ccache
+      uses: hendrikmuhs/ccache-action@main
+      with:
+        max-size: 4G
+
+    - id: python
+      uses: actions/setup-python@v4
+      with:
+         python-version: '3.10'
+         
+    - id: build
+      shell: bash
+      run: |
+         curl -SsL https://github.com/rokibhasansagar/slimhub_actions/raw/main/cleanup.sh | bash
+
+         echo "::group:: Setting Up Swap"
+         export SWAP_FILE=$(swapon --show=NAME | tail -n 1)
+         sudo swapoff $SWAP_FILE
+         sudo rm $SWAP_FILE
+         sudo fallocate -l 16G $SWAP_FILE
+         sudo chmod 600 $SWAP_FILE
+         sudo mkswap $SWAP_FILE
+         sudo swapon $SWAP_FILE
+         echo Memory Status
+         free -h
+         echo Swap Status
+         swapon --show
+         echo "::endgroup::"
+         
+         echo "::group:: Installing Building Depend Packages"
+         sudo apt-get install -q -y dos2unix gperf gcc-multilib gcc-10-multilib g++-multilib g++-10-multilib libc6-dev lib32ncurses5-dev x11proto-core-dev libx11-dev tree lib32z-dev libgl1-mesa-dev libxml2-utils xsltproc bc lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libwxgtk3.0-gtk3-dev libxml2 lzop pngcrush schedtool squashfs-tools imagemagick libbz2-dev lzma ncftp qemu-user-static libstdc++-10-dev libncurses5 python 
+         echo "::endgroup::"
+         echo "::group:: Initializing repo"
+         mkdir workspace
+         cd workspace
+         echo "workspace-folder=$(pwd)" >> $GITHUB_OUTPUT
+         git config --global user.name "Nico170420"
+         git config --global user.email "b170420nc@gmail.com"
+         if [ ${{ inputs.android-onmi }} = "false" ]; then
+             python3 ~/bin/repo init --depth=1 -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp -b ${{ inputs.branch }}
+         else
+             python3 ~/bin/repo init --depth=1 -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_onmi -b ${{ inputs.branch }}
+         fi
+         python3 ~/bin/repo sync -j$(nproc --all) --force-sync
+         echo "::endgroup::"
+
+         echo "::group:: Cloning device tree"
+         git clone ${{ inputs.dturl }} -b ${{ inputs.dtbranch }} ./device/${{ inputs.product }}/${{ inputs.boardname }}
+         echo "::endgroup::"
+
+         if [ ${{ inputs.twrp-dep }} = "true" ]; then
+             echo "::group:: Syncing Device Dependencies"
+             wget https://github.com/SekaiMoe/twrp_build/raw/main/convert.sh 
+             bash convert.sh ./device/${{ inputs.product }}/${{ inputs.boardname }}/twrp.dependencies
+         echo "::group:: Installing Building Depend Packages"
+
+         echo "::group:: Building Recovery"
+         mkdir ../out
+         source build/envsetup.sh
+         export ALLOW_MISSING_DEPENDENCIES=true
+         if [ ${{ inputs.ab-partition }} = "false" ]; then
+             lunch ${{ inputs.lunchname }} && make clean && make recoveryimage -j$(nproc --all)
+             mv out/target/product/${{ inputs.boardname }}/recovery.img ../out
+         else
+             lunch ${{ inputs.lunchname }} && make clean && make bootimage -j$(nproc --all)
+             mv out/target/product/${{ inputs.boardname }}/*.img ../out
+         fi
+    - id: upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: recovery
+        path: out/*
+ 
+

@@ -42,13 +42,8 @@ runs:
     - id: ccache
       uses: hendrikmuhs/ccache-action@main
       with:
-        max-size: 4G
+        max-size: 1G
 
-    - id: python
-      uses: actions/setup-python@v4
-      with:
-         python-version: '3.10'
-         
     - id: build
       shell: bash
       run: |
@@ -69,7 +64,7 @@ runs:
          echo "::endgroup::"
          
          echo "::group:: Installing Building Depend Packages"
-         sudo apt-get install -q -y dos2unix gperf gcc-multilib gcc-10-multilib g++-multilib g++-10-multilib libc6-dev lib32ncurses5-dev x11proto-core-dev libx11-dev tree lib32z-dev libgl1-mesa-dev libxml2-utils xsltproc bc lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libwxgtk3.0-gtk3-dev libxml2 lzop pngcrush schedtool squashfs-tools imagemagick libbz2-dev lzma ncftp qemu-user-static libstdc++-10-dev libncurses5 python 
+         sudo apt-get install -q -y dos2unix python3 gperf gcc-multilib gcc-10-multilib g++-multilib g++-10-multilib libc6-dev lib32ncurses5-dev x11proto-core-dev libx11-dev tree lib32z-dev libgl1-mesa-dev libxml2-utils xsltproc bc lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libwxgtk3.0-gtk3-dev libxml2 lzop pngcrush schedtool squashfs-tools imagemagick libbz2-dev lzma ncftp qemu-user-static libstdc++-10-dev libncurses5 python 
          echo "::endgroup::"
          echo "::group:: Initializing repo"
          mkdir workspace
@@ -93,6 +88,7 @@ runs:
              echo "::group:: Syncing Device Dependencies"
              wget https://github.com/SekaiMoe/twrp_build/raw/main/convert.sh 
              bash convert.sh ./device/${{ inputs.product }}/${{ inputs.boardname }}/twrp.dependencies
+         fi
          echo "::group:: Installing Building Depend Packages"
 
          echo "::group:: Building Recovery"
